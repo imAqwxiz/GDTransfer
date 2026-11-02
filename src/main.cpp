@@ -1,3 +1,5 @@
+// GDTransfer - import / export / share .gmd files without the GD servers
+// Built for Geode v5.10.1 (C++23, non-templated Popup, async file picker)
 
 #include <Geode/Geode.hpp>
 #include <Geode/modify/LevelBrowserLayer.hpp>
@@ -11,12 +13,14 @@ using namespace geode::prelude;
 namespace {
     using PickResult = Result<std::optional<std::filesystem::path>>;
 
-    CCSprite* fitIcon(CCSprite* spr) {
+    // keep the icon inside a sane button size, fall back to a GD sprite if the png is missing
+    CCSprite* fitIcon(CCSprite* spr, float size = 40.f) {
         if (!spr) spr = CCSprite::createWithSpriteFrameName("GJ_plusBtn_001.png");
-        limitNodeSize(spr, { 40.f, 40.f }, 1.f, .1f);
+        limitNodeSize(spr, { size, size }, 1.f, .1f);
         return spr;
     }
 
+    // "My Level: v2?" -> "My Level_ v2_"
     std::string safeFileName(std::string name) {
         constexpr std::string_view bad = "\\/:*?\"<>|";
         for (auto& c : name) {
@@ -27,6 +31,9 @@ namespace {
     }
 }
 
+// ---------------------------------------------------------------------------
+// The popup: [Pick File] [Cancel]. Cancel (or the X) just closes it.
+// ---------------------------------------------------------------------------
 class GDTransferPopup : public Popup {
 public:
     enum class Mode { Import, Export };
@@ -46,6 +53,7 @@ protected:
     Ref<GJGameLevel> m_level;
     bool m_busy = false;
     std::optional<std::filesystem::path> m_pending;
+    // destroying this (popup closed) automatically cancels a running picker
     async::TaskHolder<PickResult> m_picker;
 
     bool init(Mode mode, GJGameLevel* level) {
@@ -117,8 +125,10 @@ protected:
                 }
 
                 auto picked = result.unwrap();
-                if (!picked) return;
+                if (!picked) return; // system picker was cancelled, popup stays so they can retry / Cancel
 
+                // don't tear the popup down from inside the picker's own callback,
+                // finish on the next frame instead
                 m_pending = *picked;
                 this->scheduleOnce(schedule_selector(GDTransferPopup::onFinish), 0.f);
             }
@@ -126,7 +136,7 @@ protected:
     }
 
     void onFinish(float) {
-        Ref<GDTransferPopup> keepAlive = this;
+        Ref<GDTransferPopup> keepAlive = this; // popup closes itself below
         if (!m_pending) return;
         auto path = *m_pending;
         m_pending.reset();
@@ -152,11 +162,14 @@ protected:
             return;
         }
 
+        // newest level goes to the top of My Levels
         LocalLevelManager::sharedState()->m_localLevels->insertObject(level, 0);
+        // save now so a crash / force close doesn't lose the import
         AppDelegate::get()->trySaveGame(false);
 
         this->onClose(nullptr);
 
+        // reopen My Levels so the new level shows up in the list
         auto scene = LevelBrowserLayer::scene(GJSearchObject::create(SearchType::MyLevels));
         CCDirector::sharedDirector()->replaceScene(CCTransitionFade::create(.5f, scene));
     }
@@ -190,24 +203,23 @@ protected:
     }
 };
 
+// ---------------------------------------------------------------------------
+// Import button: My Levels screen
+// ---------------------------------------------------------------------------
 class $modify(GTBrowserLayer, LevelBrowserLayer) {
     bool init(GJSearchObject* search) {
         if (!LevelBrowserLayer::init(search)) return false;
 
+        // only on "My Levels"
         if (!search || search->m_searchType != SearchType::MyLevels) return true;
 
         auto winSize = CCDirector::sharedDirector()->getWinSize();
 
-        CCPoint pos = { winSize.width - 40.f, 125.f };
-        if (auto newMenu = this->getChildByID("new-level-menu")) {
-            if (auto plus = newMenu->getChildByID("new-level-button")) {
-                pos = this->convertToNodeSpace(newMenu->convertToWorldSpace(plus->getPosition()));
-                pos.y += plus->getScaledContentSize().height / 2.f + 36.f;
-            }
-        }
+        // top right corner, clear of the level list
+        CCPoint pos = { winSize.width - 30.f, winSize.height - 30.f };
 
         auto btn = CCMenuItemSpriteExtra::create(
-            fitIcon(CCSprite::create("import.png"_spr)),
+            fitIcon(CCSprite::create("import.png"_spr), 32.f),
             this, menu_selector(GTBrowserLayer::onGTImport)
         );
         btn->setID("import-button"_spr);
@@ -229,6 +241,9 @@ class $modify(GTBrowserLayer, LevelBrowserLayer) {
     }
 };
 
+// ---------------------------------------------------------------------------
+// Export button: level page (name / description screen), not the editor itself
+// ---------------------------------------------------------------------------
 class $modify(GTEditLevelLayer, EditLevelLayer) {
     bool init(GJGameLevel* level) {
         if (!EditLevelLayer::init(level)) return false;
@@ -239,6 +254,7 @@ class $modify(GTEditLevelLayer, EditLevelLayer) {
         );
         btn->setID("export-button"_spr);
 
+        // prefer GD's own side menu so it lines up with the other buttons
         auto actions = typeinfo_cast<CCMenu*>(this->getChildByID("level-actions-menu"));
         if (actions && actions->getLayout()) {
             actions->addChild(btn);
