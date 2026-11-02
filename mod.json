@@ -1,17 +1,19 @@
 {
-	"geode": "$GEODE_VERSION",
-	"gd": {
-		"win": "2.2081",
-		"android": "2.2081",
-		"mac": "2.2081",
-		"ios": "2.2081"
-	},
-	"id": "$MOD_ID",
-	"name": "$MOD_NAME",
-	"version": "$MOD_VERSION",
-	"developer": "$MOD_DEVELOPER",
-	"description": "$MOD_DESCRIPTION",
-	"dependencies": {
-		"geode.node-ids": ">=v1.23.3"
-	}
+    "geode": "5.10.1",
+    "gd": {
+        "win": "2.2081",
+        "android": "2.2081",
+        "mac": "2.2081",
+        "ios": "2.2081"
+    },
+    "id": "aqwxiz.gdtransfer",
+    "name": "GDTransfer",
+    "version": "v1.0.0",
+    "developer": "aqwxiz",
+    "description": "Import, export and share your Geometry Dash levels as .gmd files, with no need to post them on the GD servers.",
+    "tags": ["utility", "editor", "offline"],
+    "dependencies": {
+        "geode.node-ids": ">=v1.23.3",
+        "hjfod.gmd-api": "1.5.0"
+    }
 }
