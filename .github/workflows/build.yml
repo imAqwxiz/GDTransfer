@@ -1,4 +1,4 @@
-name: GDTransfer
+name: Build GDTransfer
 
 on:
   workflow_dispatch:
@@ -40,7 +40,7 @@ jobs:
         uses: geode-sdk/build-geode-mod@main
         with:
           combine: true
-          sdk: latest # v5.10.1 is the latest release right now
+          sdk: v5.10.1
           target: ${{ matrix.config.target }}
 
   package:
